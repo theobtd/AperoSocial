@@ -25,7 +25,6 @@
         h5 {
             text-align: center;
         }
-        
         label {
             margin-top: 15px;
             display: block;
@@ -56,6 +55,10 @@
             margin: 15px 0;
             font-size: 14px;
             color: #555;
+        }
+        .thank-you {
+            display: none; /* Hidden by default */
+            text-align: center;
         }
     </style>
     <!-- Firebase App (the core Firebase SDK) -->
@@ -98,6 +101,13 @@
 
         <button type="submit">Submit</button>
     </form>
+
+    <div class="thank-you" id="thankYouMessage">
+        <h2>Thank you for signing up!</h2>
+        <p>We will review your submission and confirm your meeting details within the next hour. If you don't see any email coming your way by then, please check your spams.</p>
+        <p>Meanwhile, it would be of great help if you could share Apero.Social with anyone you think may be interested. Here is the sign up link: <a href="https://generallink.com" target="_blank">generallink.com</a></p>
+        <p>Wishing you a great day,<br>The Apero.Social Team :)</p>
+    </div>
 </div>
 
 <script>
@@ -140,8 +150,9 @@
 
         database.ref('users').push(userData)
             .then(() => {
-                alert('Data submitted successfully!');
-                document.getElementById('signupForm').reset();
+                // Hide the form and show the thank you message
+                document.getElementById('signupForm').style.display = 'none';
+                document.getElementById('thankYouMessage').style.display = 'block';
             })
             .catch(error => {
                 alert('Error submitting data: ' + error.message);
