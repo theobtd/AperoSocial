@@ -32,12 +32,12 @@
         input[type="text"],
         input[type="email"],
         select {
-            width: 100%; /* Full width */
-            padding: 10px; /* Equal padding */
+            width: 100%;
+            padding: 10px;
             margin: 5px 0 15px;
             border: 1px solid #ccc;
             border-radius: 4px;
-            box-sizing: border-box; /* Include padding and border in width */
+            box-sizing: border-box;
         }
         button {
             width: 100%;
@@ -57,13 +57,32 @@
             color: #555;
         }
         .thank-you {
-            display: none; /* Hidden by default */
+            display: none;
             text-align: center;
         }
+        .faq-section {
+            margin-top: 20px;
+        }
+        .faq-question {
+            cursor: pointer;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            margin-top: 5px;
+            transition: background-color 0.3s;
+        }
+        .faq-question:hover {
+            background-color: #d3d3d3;
+        }
+        .faq-answer {
+            display: none;
+            padding: 10px;
+            border-left: 2px solid #28a745;
+            background-color: #f8f9fa;
+            margin-top: 5px;
+        }
     </style>
-    <!-- Firebase App (the core Firebase SDK) -->
     <script src="https://www.gstatic.com/firebasejs/9.9.0/firebase-app-compat.js"></script>
-    <!-- Firebase Database -->
     <script src="https://www.gstatic.com/firebasejs/9.9.0/firebase-database-compat.js"></script>
 </head>
 <body>
@@ -108,10 +127,37 @@
         <p>Meanwhile, it would be of great help if you could share Apero.Social with anyone you think may be interested. Here is the sign up link: <a href="https://generallink.com" target="_blank">generallink.com</a></p>
         <p>Wishing you a great day,<br>The Apero.Social Team :)</p>
     </div>
+
+    <div class="faq-section">
+        <h2>Frequently Asked Questions</h2>
+        <div class="faq-question" onclick="toggleFAQ('faq1')">How does Apero.Social work?</div>
+        <div class="faq-answer" id="faq1">
+            When you sign up, you'll be paired with two other individuals at a designated location, date, and time. It's not an event; rather, we simply make a reservation for you. The two others are strangers to each other, creating a relaxed atmosphere for genuine interaction. Just show up, chat, and enjoy your hour together!
+        </div>
+
+        <div class="faq-question" onclick="toggleFAQ('faq2')">What is NOT Apero.Social?</div>
+        <div class="faq-answer" id="faq2">
+            Apero.Social is NOT a place to do professional networking, find a partner, or drink heavily. Moreover, keep in mind that the point of Apero.Social is to meet new, different people - so you are bound to encounter new, different points of views. Feel free to disagree with other points of views and argue why, but Apero.Social is definitely not a place to attack or harass over these differences.
+        </div>
+
+        <div class="faq-question" onclick="toggleFAQ('faq3')">Do I have to drink?</div>
+        <div class="faq-answer" id="faq3">
+            Not at all! Obviously feel free to have a glass of whatever you want, but please do not see Apero.Social as a heavy drinking or party outlet. It is perfectly fine to have a glass of tea, sparkling water, or whatever else makes you happy.
+        </div>
+
+        <div class="faq-question" onclick="toggleFAQ('faq4')">How does Apero.Social make sure I'm safe?</div>
+        <div class="faq-answer" id="faq4">
+            First of all, all the Aperos we organize are in well-managed cafés, bars, and restaurants so if you ever feel unsafe or threatened by another attendee please seek assistance from your surroundings. If you were the subject (or witness) of a rude, aggressive, or threatening attendee please report it to us as soon as feasible by email to: report@apero.social. This attendee will immediately be suspended, and if the offense is confirmed by the third attendee then the ban will be enforced permanently.
+        </div>
+
+        <div class="faq-question" onclick="toggleFAQ('faq5')">Why do you need the link of my social media accounts?</div>
+        <div class="faq-answer" id="faq5">
+            For your safety and enjoyment, as this is the easiest and least intrusive way of checking that every attendee is a real, identifiable person that can indeed be permanently banned in case of unacceptable behavior. This is why we require a link to an ACTIVE social media account: it's easy to create a second fake email address, but it's harder to fake the cringy Facebook posts you made with your ex back in 2013.
+        </div>
+    </div>
 </div>
 
 <script>
-    // Your web app's Firebase configuration
     const firebaseConfig = {
         apiKey: "AIzaSyBB61hJK8iHNAXz2q5u8ghGqIFMyJh-Nho",
         authDomain: "aperosocial-d53c7.firebaseapp.com",
@@ -122,7 +168,6 @@
         appId: "1:954205055992:web:c2ebebe1c0ac210163440d"
     };
 
-    // Initialize Firebase
     const app = firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
@@ -136,7 +181,6 @@
         const instagram = document.getElementById('instagram').value;
         const linkedin = document.getElementById('linkedin').value;
 
-        // Save data to Firebase
         const userData = {
             name: name,
             email: email,
@@ -150,7 +194,6 @@
 
         database.ref('users').push(userData)
             .then(() => {
-                // Hide the form and show the thank you message
                 document.getElementById('signupForm').style.display = 'none';
                 document.getElementById('thankYouMessage').style.display = 'block';
             })
@@ -158,6 +201,11 @@
                 alert('Error submitting data: ' + error.message);
             });
     });
+
+    function toggleFAQ(faqId) {
+        const answer = document.getElementById(faqId);
+        answer.style.display = answer.style.display === 'block' ? 'none' : 'block';
+    }
 </script>
 
 </body>
