@@ -9,27 +9,24 @@
     <script src="https://www.gstatic.com/firebasejs/9.9.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.9.0/firebase-database-compat.js"></script>
 </head>
-<body>
 <body>    
     <button id="toggleMenuBtn">Toggle Menu</button>
     <div class="sidebar" id="sidebar">
-        <h2 id="welcomeHeader">Welcome!</h2>
+        <h2 id="welcomeHeader">Welcome, [userId]!</h2>
+    
+        <!-- Directly include the search bar and lists -->
+        <input type="text" id="userSearchBar" placeholder="Search by User ID" oninput="filterUsers()">
+
+        <!-- User list for search results -->
+        <div class="user-list" id="userList"></div> <!-- Ensure this is still included -->
+        
+        <h3>Pending Friend Requests</h3>
+        <div class="request-list" id="requestList"></div>
+    
+        <h3>Accepted Friends</h3>
+        <div class="accepted-list" id="acceptedList"></div>
+
         <button id="logoutBtn">Log Out</button>
-
-        <div class="collapsible">
-            <h3 onclick="toggleCollapsible()">Users</h3>
-            <div class="collapsible-content">
-                <input type="text" id="userSearchBar" placeholder="Search by User ID" oninput="filterUsers()">
-                <h3>All Users</h3>
-                <div class="user-list" id="userList"></div>
-
-                <h3>Pending Friend Requests</h3>
-                <div class="request-list" id="requestList"></div>
-
-                <h3>Accepted Friends</h3>
-                <div class="accepted-list" id="acceptedList"></div>
-            </div>
-        </div>
     </div>
 
     <div class="main-content">
@@ -61,8 +58,20 @@
             <label for="eventComment">Event Comment:</label>
             <textarea id="eventComment" maxlength="200" rows="4" required></textarea>
             <br>
+            <label for="eventCategory">Category:</label>
+            <select id="eventCategory" required>
+                <option value="" disabled selected>Select a category</option>
+                <option value="apero">Apero</option>
+                <option value="coffee">Coffee</option>
+                <option value="lunch">Lunch</option>
+                <option value="dinner">Dinner</option>
+                <option value="workout">Workout</option>
+                <option value="party">Party</option>
+                <option value="other">Other</option>
+            </select>
+            <br>
             <button id="submitEventBtn">Create Event</button>
-
+    
             <h4>Your Friends:</h4>
             <button id="selectAllBtn">Select All Friends</button> <!-- Super button -->
             <div id="friendsList" class="friends-list"></div>
@@ -78,6 +87,7 @@
             <p id="eventDetailDate"></p>
             <p id="eventDetailTime"></p>
             <p id="eventDetailCreator"></p>
+            <p id="eventDetailCategory"></p> <!-- New line for category -->
             <h4>Participants</h4>
             <div id="participantList"></div>
             <p id="eventDetailLocation"></p>
@@ -104,6 +114,16 @@
         const database = firebase.database();
 
         let allUsers = [];
+
+        const categoryColors = {
+            apero: '#FFA07A',   // Light Salmon
+            coffee: '#FFD700',  // Gold
+            lunch: '#90EE90',   // Light Green
+            dinner: '#ADD8E6',  // Light Blue
+            workout: '#FFB6C1', // Light Pink
+            party: '#9370DB',   // Medium Purple
+            other: '#D3D3D3'    // Light Gray
+        };
 
         // Function to fetch and display users
         function displayUsers() {
@@ -170,50 +190,56 @@
                 if (user.userId.toLowerCase().includes(searchValue)) {
                     hasResults = true; // Indicate that a result has been found
         
-                    // Create and display the user item
-                    const userItem = document.createElement('div');
-                    userItem.classList.add('user-item');
-                    userItem.textContent = user.userId;
+                    // Check if the user is already in the list to prevent duplicates
+                    const existingUserItems = userList.getElementsByClassName('user-item');
+                    const userExists = Array.from(existingUserItems).some(item => item.textContent === user.userId);
         
-                    // Create the action button
-                    const actionButton = document.createElement('button');
+                    if (!userExists) {
+                        // Create and display the user item
+                        const userItem = document.createElement('div');
+                        userItem.classList.add('user-item');
+                        userItem.textContent = user.userId;
         
-                    // Determine the button text and functionality
-                    const currentUserId = auth.currentUser.uid; // Get current user's Firebase UID
-                    const targetUserId = user.uid; // Get the UID of the user being displayed
+                        // Create the action button (existing logic)
+                        const actionButton = document.createElement('button');
         
-                    // Check for incoming friend requests
-                    database.ref(`users/${currentUserId}/friendRequests/${targetUserId}`).once('value').then(friendSnapshot => {
-                        if (friendSnapshot.exists()) {
-                            if (friendSnapshot.val().status === 'pending') {
-                                actionButton.textContent = 'Pending';
-                                actionButton.disabled = true; // Disable the button
-                            } else if (friendSnapshot.val().status === 'accepted') {
-                                actionButton.textContent = 'Friends';
-                                actionButton.disabled = true; // Disable the button
-                            }
-                        } else {
-                            // Check for outgoing friend requests
-                            database.ref(`users/${targetUserId}/friendRequests/${currentUserId}`).once('value').then(requestSnapshot => {
-                                if (requestSnapshot.exists()) {
-                                    if (requestSnapshot.val().status === 'pending') {
-                                        actionButton.textContent = 'Pending';
-                                        actionButton.disabled = true; // Disable the button
-                                    }
-                                } else {
-                                    // If no requests exist, show a "+" button
-                                    actionButton.textContent = '+';
-                                    actionButton.onclick = function () {
-                                        sendFriendRequest(targetUserId, actionButton); // Pass the UID and button
-                                    };
+                        // Determine the button text and functionality
+                        const currentUserId = auth.currentUser.uid; // Get current user's Firebase UID
+                        const targetUserId = user.uid; // Get the UID of the user being displayed
+        
+                        // Check for incoming friend requests
+                        database.ref(`users/${currentUserId}/friendRequests/${targetUserId}`).once('value').then(friendSnapshot => {
+                            if (friendSnapshot.exists()) {
+                                if (friendSnapshot.val().status === 'pending') {
+                                    actionButton.textContent = 'Pending';
+                                    actionButton.disabled = true; // Disable the button
+                                } else if (friendSnapshot.val().status === 'accepted') {
+                                    actionButton.textContent = 'Friends';
+                                    actionButton.disabled = true; // Disable the button
                                 }
-                            });
-                        }
+                            } else {
+                                // Check for outgoing friend requests
+                                database.ref(`users/${targetUserId}/friendRequests/${currentUserId}`).once('value').then(requestSnapshot => {
+                                    if (requestSnapshot.exists()) {
+                                        if (requestSnapshot.val().status === 'pending') {
+                                            actionButton.textContent = 'Pending';
+                                            actionButton.disabled = true; // Disable the button
+                                        }
+                                    } else {
+                                        // If no requests exist, show a "+" button
+                                        actionButton.textContent = '+';
+                                        actionButton.onclick = function () {
+                                            sendFriendRequest(targetUserId, actionButton); // Pass the UID and button
+                                        };
+                                    }
+                                });
+                            }
         
-                        // Append the action button to the user item
-                        userItem.appendChild(actionButton);
-                        userList.appendChild(userItem);
-                    });
+                            // Append the action button to the user item
+                            userItem.appendChild(actionButton);
+                            userList.appendChild(userItem);
+                        });
+                    }
                 }
             });
         
@@ -368,6 +394,7 @@
                                     checkbox.type = 'checkbox';
                                     checkbox.id = friendId; // Use friend's UID as ID
                                     checkbox.value = friendData.userId; // Store userId as value
+                                    checkbox.checked = true; // Automatically check the checkbox
         
                                     // Append the checkbox and friend name
                                     friendItem.appendChild(checkbox);
@@ -402,8 +429,9 @@
             const time = document.getElementById("eventTime").value;
             const location = document.getElementById("eventLocation").value; // Get the location
             const comment = document.getElementById("eventComment").value; // Get the comment
+            const category = document.getElementById("eventCategory").value; // Get the selected category
         
-            if (title && date && time && location && comment) { // Check if all fields are filled
+            if (title && date && time && location && comment && category) { // Check if all fields are filled
                 const currentUserId = auth.currentUser.uid; // Get current user's Firebase UID
                 const eventKey = database.ref('users/' + currentUserId + '/events').push().key; // Create a unique key for the event
         
@@ -422,6 +450,7 @@
                     time: time,
                     location: location, // Store the location
                     comment: comment, // Store the comment
+                    category: category, // Store the selected category
                     createdBy: currentUserId, // Store the creator's user ID
                     visibleTo: selectedFriends // Store the list of friends who can see the event
                 }).then(() => {
@@ -453,6 +482,7 @@
             const eventDate = document.getElementById('eventDetailDate');
             const eventTime = document.getElementById('eventDetailTime');
             const eventCreator = document.getElementById('eventDetailCreator');
+            const eventCategory = document.getElementById('eventDetailCategory'); // Reference to category
             const eventLocation = document.getElementById('eventDetailLocation');
             const eventComment = document.getElementById('eventDetailComment');
             const deleteEventBtn = document.getElementById('deleteEventBtn');
@@ -464,6 +494,7 @@
             eventDate.textContent = `Date: ${event.date}`;
             eventTime.textContent = `Time: ${event.time}`;
             eventCreator.textContent = `Created by: ${event.userId}`;
+            eventCategory.textContent = `Category: ${event.category}`; // Set the category text
             eventLocation.textContent = `Location: ${event.location || 'Not specified'}`;
             eventComment.textContent = `Comment: ${event.comment || 'No comment'}`;
         
@@ -606,9 +637,10 @@
                             time: eventData.time,
                             location: eventData.location || 'Not specified',
                             comment: eventData.comment || 'No comment',
+                            category: eventData.category || 'Not specified', // Access the category here
                             createdBy: eventData.createdBy,
-                            userId: "You",
-                            visibleTo: eventData.visibleTo || [], // Get the visibleTo array
+                            userId: "You", // or fetch the userId based on createdBy UID
+                            visibleTo: eventData.visibleTo || [],
                             id: eventId
                         });
                     });
@@ -629,7 +661,7 @@
                     });
                 }
         
-                // Fetch friends' events
+                // Fetch accepted friends' events
                 const friendEventPromises = friendIds.map(friendId => {
                     return database.ref('users/' + friendId + '/events').once('value').then(eventSnapshot => {
                         const events = eventSnapshot.val();
@@ -639,7 +671,7 @@
                                 return database.ref('users/' + friendId).once('value').then(userSnapshot => {
                                     const userData = userSnapshot.val();
                                     const friendUserId = userData ? userData.userId : friendId;
-        
+                
                                     const eventData = events[eventId];
                                     allEvents.push({
                                         title: eventData.title,
@@ -647,6 +679,7 @@
                                         time: eventData.time,
                                         location: eventData.location || 'Not specified',
                                         comment: eventData.comment || 'No comment',
+                                        category: eventData.category || 'Not specified', // Ensure category is included
                                         createdBy: friendId,
                                         userId: friendUserId,
                                         visibleTo: eventData.visibleTo || [],
@@ -654,7 +687,7 @@
                                     });
                                 });
                             });
-        
+                
                             return Promise.all(userIdPromises);
                         }
                     });
@@ -673,25 +706,26 @@
                 });
         
                 // Display all events in a single unified list
-                allEvents.forEach(event => {
-                    // Check if the event is visible to the current user
-                    const isVisible = event.createdBy === currentUserId || 
-                                      (event.visibleTo && event.visibleTo.includes(currentUserId));
-        
-                    if (isVisible) {
-                        const eventItem = document.createElement('div');
-                        eventItem.classList.add('event-item');
-        
-                        // Indicate if it's your event or a friend's event
-                        const eventOwner = (event.createdBy === currentUserId) ? '(Your Event)' : `(Created by: ${event.userId})`;
-                        eventItem.textContent = `${event.title} - ${event.date} at ${event.time} ${eventOwner}`;
-                        
-                        // Add click event to open details
-                        eventItem.onclick = () => openEventDetails(event); // Pass the event object
-                        
-                        unifiedEventList.appendChild(eventItem); // Append each event in order
-                    }
-                });
+                    allEvents.forEach(event => {
+                        const isVisible = event.createdBy === currentUserId || 
+                                          (event.visibleTo && event.visibleTo.includes(currentUserId));
+                    
+                        if (isVisible) {
+                            const eventItem = document.createElement('div');
+                            eventItem.classList.add('event-item');
+                    
+                            // Set the background color based on category
+                            eventItem.style.backgroundColor = categoryColors[event.category] || '#FFFFFF'; // Default to white if category not found
+                    
+                            const eventOwner = (event.createdBy === currentUserId) ? '(Your Event)' : `(Created by: ${event.userId})`;
+                            eventItem.textContent = `${event.title} - ${event.date} at ${event.time} ${eventOwner}`;
+                            
+                            // Add click event to open details
+                            eventItem.onclick = () => openEventDetails(event); // Pass the event object
+                            
+                            unifiedEventList.appendChild(eventItem); // Append each event in order
+                        }
+                    });
             }).catch(error => {
                 console.error("Error fetching events:", error);
             });
@@ -749,6 +783,12 @@
             const sidebar = document.getElementById('sidebar');
             sidebar.style.display = sidebar.style.display === "none" ? "block" : "none"; // Toggle sidebar visibility
         };
+
+                // Initially hide the sidebar
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.style.display = 'none'; // Start with the sidebar hidden
+        });
     </script>
 
 </body>
