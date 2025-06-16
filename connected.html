@@ -32,8 +32,14 @@
 
     <div class="main-content">
         <h3>All Events</h3>
-        <button id="createEventBtn">Create Event</button>
-        <div class="event-list" id="eventList"></div>
+        <div>
+            <button id="showPastBtn">Past Events</button>
+            <button id="showFutureBtn">Future Events</button>
+        </div>
+        <button id="createEventBtn">Create Event</button> <!-- Moved here -->
+        <div class="event-box">
+            <div class="event-list" id="eventList"></div>
+        </div>
         
         <!-- Picture Upload Section -->
         <!-- <h3>Upload a Picture</h3 -->
@@ -90,15 +96,8 @@
         <div class="modal-content">
             <span class="close" onclick="closeEventDetailsModal()">&times;</span>
             <h3>Event Details</h3>
-            <p id="eventDetailTitle"></p>
-            <p id="eventDetailDate"></p>
-            <p id="eventDetailTime"></p>
-            <p id="eventDetailCreator"></p>
-            <p id="eventDetailCategory"></p>
             <h4>Participants</h4>
             <div id="participantList"></div>
-            <p id="eventDetailLocation"></p>
-            <p id="eventDetailComment"></p>
             
             <!-- Picture Carousel Section -->
             <h3>Event Pictures</h3>
@@ -247,6 +246,8 @@
         let allUsers = [];
 
         let currentImageIndex = 0;
+
+        let showFutureEvents = true; // Default to showing future events
 
         document.getElementById('prevBtn').onclick = function () {
             const images = document.querySelectorAll('#carouselImages img');
@@ -636,26 +637,10 @@
             currentEventId = event.id; // Store the current event ID
             const currentUserId = auth.currentUser.uid; // Get the current user's UID
             const eventDetailsModal = document.getElementById('eventDetailsModal');
-            const eventTitle = document.getElementById('eventDetailTitle');
-            const eventDate = document.getElementById('eventDetailDate');
-            const eventTime = document.getElementById('eventDetailTime');
-            const eventCreator = document.getElementById('eventDetailCreator');
-            const eventCategory = document.getElementById('eventDetailCategory');
-            const eventLocation = document.getElementById('eventDetailLocation');
-            const eventComment = document.getElementById('eventDetailComment');
             const deleteEventBtn = document.getElementById('deleteEventBtn');
             const joinEventBtn = document.getElementById('joinEventBtn');
             const participantList = document.getElementById('participantList');
             const carouselImages = document.getElementById('carouselImages');
-        
-            // Set the event details
-            eventTitle.textContent = `Title: ${event.title}`;
-            eventDate.textContent = `Date: ${event.date}`;
-            eventTime.textContent = `Time: ${event.time}`;
-            eventCreator.textContent = `Created by: ${event.userId}`;
-            eventCategory.textContent = `Category: ${event.category}`;
-            eventLocation.textContent = `Location: ${event.location || 'Not specified'}`;
-            eventComment.textContent = `Comment: ${event.comment || 'No comment'}`;
         
             // Show or hide the delete button based on creator
             if (event.createdBy === currentUserId) {
@@ -680,9 +665,6 @@
                         };
                     });
             }
-        
-            // Fetch and display the list of participants
-            displayParticipants(event.createdBy, event.id, participantList);
         
             // Fetch and display pictures in the carousel
             database.ref(`events/${event.id}/pictures`).once('value').then(snapshot => {
@@ -799,6 +781,16 @@
             unifiedEventList.innerHTML = ''; // Clear the list to prevent duplicates
         
             let allEvents = []; // Array to hold all events (yours + friends')
+
+            document.getElementById('showPastBtn').onclick = function() {
+                showFutureEvents = false; // Set to show past events
+                displayAllEvents(); // Refresh the event list
+            };
+            
+            document.getElementById('showFutureBtn').onclick = function() {
+                showFutureEvents = true; // Set to show future events
+                displayAllEvents(); // Refresh the event list
+            };
         
             // Fetch your events
             const yourEventsPromise = database.ref('users/' + currentUserId + '/events').once('value').then(snapshot => {
@@ -813,9 +805,9 @@
                             time: eventData.time,
                             location: eventData.location || 'Not specified',
                             comment: eventData.comment || 'No comment',
-                            category: eventData.category || 'Not specified', // Access the category here
+                            category: eventData.category || 'Not specified',
                             createdBy: eventData.createdBy,
-                            userId: "You", // or fetch the userId based on createdBy UID
+                            userId: "You",
                             visibleTo: eventData.visibleTo || [],
                             id: eventId
                         });
@@ -832,12 +824,11 @@
                     const requestsArray = Object.keys(requests);
                     requestsArray.forEach(friendId => {
                         if (requests[friendId].status === 'accepted') {
-                            friendIds.push(friendId); // Store accepted friend IDs
+                            friendIds.push(friendId);
                         }
                     });
                 }
         
-                // Fetch accepted friends' events
                 const friendEventPromises = friendIds.map(friendId => {
                     return database.ref('users/' + friendId + '/events').once('value').then(eventSnapshot => {
                         const events = eventSnapshot.val();
@@ -847,7 +838,7 @@
                                 return database.ref('users/' + friendId).once('value').then(userSnapshot => {
                                     const userData = userSnapshot.val();
                                     const friendUserId = userData ? userData.userId : friendId;
-                
+        
                                     const eventData = events[eventId];
                                     allEvents.push({
                                         title: eventData.title,
@@ -855,7 +846,7 @@
                                         time: eventData.time,
                                         location: eventData.location || 'Not specified',
                                         comment: eventData.comment || 'No comment',
-                                        category: eventData.category || 'Not specified', // Ensure category is included
+                                        category: eventData.category || 'Not specified',
                                         createdBy: friendId,
                                         userId: friendUserId,
                                         visibleTo: eventData.visibleTo || [],
@@ -863,7 +854,7 @@
                                     });
                                 });
                             });
-                
+        
                             return Promise.all(userIdPromises);
                         }
                     });
@@ -872,36 +863,265 @@
                 return Promise.all(friendEventPromises);
             });
         
-            // Wait for both your events and friends' events to be fetched
             Promise.all([yourEventsPromise, acceptedFriendsPromise]).then(() => {
-                // Sort all events by date and time
                 allEvents.sort((a, b) => {
                     const dateTimeA = new Date(`${a.date}T${a.time}:00`);
                     const dateTimeB = new Date(`${b.date}T${b.time}:00`);
-                    return dateTimeA - dateTimeB; // Ascending order
+                    return showFutureEvents ? dateTimeA - dateTimeB : dateTimeB - dateTimeA; // Reverse order for past events
                 });
         
-                // Display all events in a single unified list
-                    allEvents.forEach(event => {
-                        const isVisible = event.createdBy === currentUserId || 
-                                          (event.visibleTo && event.visibleTo.includes(currentUserId));
+                allEvents.forEach(event => {
+                    const isVisible = event.createdBy === currentUserId || 
+                                      (event.visibleTo && event.visibleTo.includes(currentUserId));
+
+                        // Add this filtering logic
+                    const eventDateTime = new Date(`${event.date}T${event.time}:00`);
+                    const isFutureEvent = eventDateTime > new Date();
+                    const isPastEvent = eventDateTime <= new Date();
                     
-                        if (isVisible) {
-                            const eventItem = document.createElement('div');
-                            eventItem.classList.add('event-item');
-                    
-                            // Set the background color based on category
-                            eventItem.style.backgroundColor = categoryColors[event.category] || '#FFFFFF'; // Default to white if category not found
-                    
-                            const eventOwner = (event.createdBy === currentUserId) ? '(Your Event)' : `(Created by: ${event.userId})`;
-                            eventItem.textContent = `${event.title} - ${event.date} at ${event.time} ${eventOwner}`;
-                            
-                            // Add click event to open details
-                            eventItem.onclick = () => openEventDetails(event); // Pass the event object
-                            
-                            unifiedEventList.appendChild(eventItem); // Append each event in order
+                    // Modify the visibility check to incorporate filtering
+                    if (isVisible && ((showFutureEvents && isFutureEvent) || (!showFutureEvents && isPastEvent))) {
+                        const eventItem = document.createElement('div');
+                        eventItem.classList.add('event-item');
+                        eventItem.style.backgroundColor = categoryColors[event.category] || '#FFFFFF';
+        
+                        const eventOwner = (event.createdBy === currentUserId) ? '(Your Event)' : `(Created by: ${event.userId})`;
+        
+                        const eventContent = document.createElement('div');
+                        eventContent.classList.add('event-content');
+                        eventContent.textContent = `${event.title} - ${event.date} at ${event.time} ${eventOwner}
+                            | Comment: ${event.comment || 'No comment'} 
+                            | Location: ${event.location || 'Not specified'} 
+                            | Category: ${event.category || 'Not specified'}`;
+
+                        // Add this code right after creating the eventContent
+                        const participantList = document.createElement('div');
+                        participantList.classList.add('participant-list'); // Add a class for styling
+                        eventItem.appendChild(participantList); // Append the participant list to the event item
+                        
+                        // Fetch participants for the event
+                        database.ref(`users/${event.createdBy}/events/${event.id}/participants`).once('value').then(participantSnapshot => {
+                            const participantUids = participantSnapshot.val() || []; // Get the list of UIDs
+                        
+                            if (participantUids.length === 0) {
+                                participantList.textContent = "No participants yet."; // Message if no participants
+                            } else {
+                                participantUids.forEach(uid => {
+                                    database.ref(`users/${uid}`).once('value').then(userSnapshot => {
+                                        const userData = userSnapshot.val();
+                                        const userId = userData ? userData.userId : "Unknown User"; // Fallback
+                                        const participantItem = document.createElement('div');
+                                        participantItem.textContent = userId; // Display the userId
+                                        participantList.appendChild(participantItem); // Add to the participant list
+                                    }).catch(error => {
+                                        console.error("Error fetching userId for UID:", uid, error);
+                                    });
+                                });
+                            }
+                        }).catch(error => {
+                            console.error("Error fetching participants:", error);
+                            participantList.textContent = "Unable to load participants."; // Display error message
+                        });
+
+                        // Create the Delete button
+                        const deleteButton = document.createElement('button');
+                        deleteButton.textContent = 'Delete Event';
+                        deleteButton.style.display = 'none'; // Initially hide the button
+                        
+                        // Check if the current user is the creator of the event
+                        if (event.createdBy === currentUserId) {
+                            deleteButton.style.display = 'block'; // Show the button if the user is the creator
+                            deleteButton.onclick = function() {
+                                deleteEvent(event.createdBy, event.id); // Call the deleteEvent function
+                            };
                         }
-                    });
+                        
+                        // Append the delete button to the event item
+                        eventItem.appendChild(deleteButton);
+        
+                        const buttonContainer = document.createElement('div');
+                        buttonContainer.style.display = 'flex';
+                        buttonContainer.style.flexDirection = 'column';
+                        buttonContainer.style.gap = '10px';
+        
+                        // Only show the "Join!" button if the current user is NOT the creator of the event
+                        if (event.createdBy !== currentUserId) {
+                            const joinButton = document.createElement('button');
+                            joinButton.classList.add('join-btn');
+                            joinButton.textContent = 'Join';
+                            joinButton.style.marginLeft = 'auto';
+        
+                            database.ref(`users/${event.createdBy}/events/${event.id}/participants`).once('value').then(snapshot => {
+                                const participants = snapshot.val() || [];
+                                const isParticipant = participants.includes(currentUserId);
+                                joinButton.textContent = isParticipant ? 'Leave Event' : 'Join!';
+                                joinButton.onclick = function () {
+                                    toggleParticipation(event.createdBy, event.id, currentUserId, joinButton);
+                                };
+                            });
+        
+                            buttonContainer.appendChild(joinButton); // Add the join button if applicable
+                        }
+
+                        participantList.classList.add('participant-list');
+                        eventItem.appendChild(participantList); // Append the participant list to the event item
+        
+                        // Create the "Pictures" button
+                        const picturesButton = document.createElement('button');
+                        picturesButton.textContent = 'Pictures';
+                        picturesButton.onclick = function () {
+                            openEventDetails(event); // Open the event details modal
+                        };
+
+                        // Hide the button
+                        picturesButton.style.display = 'none'; // This hides the button
+        
+                        buttonContainer.appendChild(picturesButton); // Add pictures button
+                        eventItem.appendChild(eventContent);
+                        eventItem.appendChild(buttonContainer);
+                        // Create a container for the upload section
+                        const uploadContainer = document.createElement('div');
+                        
+                        // Create a file input for uploading pictures
+                        const uploadInput = document.createElement('input');
+                        uploadInput.type = 'file';
+                        uploadInput.accept = 'image/*'; // Accept only image files
+                        uploadInput.style.margin = '10px 0'; // Add margin for styling
+                        
+                        // Create the "Upload" button
+                        const uploadButton = document.createElement('button');
+                        uploadButton.textContent = 'Upload Picture';
+                        uploadButton.onclick = function() {
+                            const file = uploadInput.files[0]; // Get the selected file
+                        
+                            if (!file) {
+                                alert("Please select a file to upload.");
+                                return;
+                            }
+                        
+                            const currentUser = auth.currentUser;
+                            if (currentUser) {
+                                const userId = currentUser.uid; // Get the logged-in user's UID
+                                const eventId = event.id; // Get the current event ID
+                        
+                                // Create a storage reference (folder: "event_pictures", file: "UID/eventId/filename")
+                                const storageRef = storage.ref(`event_pictures/${eventId}/${file.name}`);
+                        
+                                // Upload the file
+                                const uploadTask = storageRef.put(file);
+                        
+                                // Monitor the upload status
+                                uploadTask.on(
+                                    'state_changed',
+                                    (snapshot) => {
+                                        // Optional: Progress feedback
+                                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                                        console.log(`Upload is ${progress.toFixed(0)}% done.`);
+                                    },
+                                    (error) => {
+                                        console.error("Error uploading file:", error);
+                                        alert(`Error: ${error.message}`);
+                                    },
+                                    () => {
+                                        // Handle successful upload
+                                        uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
+                                            // Save the download URL to the database under the event ID
+                                            database.ref(`events/${eventId}/pictures`).push({
+                                                url: downloadURL,
+                                                uploadedAt: new Date().toISOString()
+                                            }).then(() => {
+                                                alert("Picture uploaded successfully!");
+                                            }).catch((error) => {
+                                                console.error("Error saving picture URL to database:", error);
+                                                alert(`Error: ${error.message}`);
+                                            });
+                                        });
+                                    }
+                                );
+                            } else {
+                                alert("User not authenticated.");
+                            }
+                        };
+                        
+                        // Append the file input and upload button to the upload container
+                        uploadContainer.appendChild(uploadInput);
+                        uploadContainer.appendChild(uploadButton);
+                        
+                        // Append the upload container to the event item
+                        eventItem.appendChild(uploadContainer);
+                        // Append the upload button to the button container
+                        buttonContainer.appendChild(uploadButton);
+        
+                        // Create picture carousel container
+                        const picturesContainer = document.createElement('div');
+                        const prevButton = document.createElement('button');
+                        const nextButton = document.createElement('button');
+                        let currentIndex = 0;
+                        let images = [];
+        
+                        picturesContainer.classList.add('event-pictures'); // Optional class for styling
+                        picturesContainer.style.display = 'flex';
+                        picturesContainer.style.flexDirection = 'column';
+                        picturesContainer.style.alignItems = 'center';
+        
+                        // Fetch pictures and set up the carousel
+                        database.ref(`events/${event.id}/pictures`).once('value').then(snapshot => {
+                            snapshot.forEach(childSnapshot => {
+                                const pictureData = childSnapshot.val();
+                                const img = document.createElement('img');
+                                img.src = pictureData.url;
+                                img.alt = "Event Picture";
+                                img.style.display = 'none'; // Start with images hidden
+                                img.style.width = "100px"; // Set width as needed
+                                img.style.margin = "5px"; // Add margin
+                                picturesContainer.appendChild(img); // Add to the pictures container
+                                images.push(img); // Store image elements for navigation
+                            });
+        
+                            // Show the first image if there are any
+                            if (images.length > 0) {
+                                images[0].style.display = 'block';
+                                // Only show buttons if there are more than one image
+                                if (images.length > 1) {
+                                    prevButton.style.display = 'block';
+                                    nextButton.style.display = 'block';
+                                } else {
+                                    prevButton.style.display = 'none';
+                                    nextButton.style.display = 'none';
+                                }
+                            } else {
+                                prevButton.style.display = 'none';
+                                nextButton.style.display = 'none'; // Hide buttons if no images
+                            }
+                        });
+        
+                        // Previous button functionality
+                        prevButton.textContent = 'Previous';
+                        prevButton.onclick = function() {
+                            if (images.length > 0) {
+                                images[currentIndex].style.display = 'none'; // Hide current image
+                                currentIndex = (currentIndex - 1 + images.length) % images.length; // Move to previous image
+                                images[currentIndex].style.display = 'block'; // Show new current image
+                            }
+                        };
+        
+                        // Next button functionality
+                        nextButton.textContent = 'Next';
+                        nextButton.onclick = function() {
+                            if (images.length > 0) {
+                                images[currentIndex].style.display = 'none'; // Hide current image
+                                currentIndex = (currentIndex + 1) % images.length; // Move to next image
+                                images[currentIndex].style.display = 'block'; // Show new current image
+                            }
+                        };
+        
+                        // Append pictures container and navigation buttons
+                        eventItem.appendChild(picturesContainer); // Append pictures container
+                        eventItem.appendChild(prevButton); // Append previous button
+                        eventItem.appendChild(nextButton); // Append next button
+                        unifiedEventList.appendChild(eventItem);
+                    }
+                });
             }).catch(error => {
                 console.error("Error fetching events:", error);
             });
@@ -1019,7 +1239,23 @@
         document.addEventListener('DOMContentLoaded', function() {
             const sidebar = document.getElementById('sidebar');
             sidebar.style.display = 'none'; // Start with the sidebar hidden
+
+                // Hide modals initially
+                const eventModal = document.getElementById("eventModal");
+                const eventDetailsModal = document.getElementById("eventDetailsModal");
+                eventModal.style.display = "none"; // Hide event creation modal
+                eventDetailsModal.style.display = "none"; // Hide event details modal
         });
+
+        // Event modal functionality
+        document.getElementById("submitEventBtn").onclick = submitEvent;
+        document.getElementsByClassName("close")[0].onclick = closeModal;
+        
+        // Create event button functionality
+        document.getElementById('createEventBtn').onclick = function() {
+            const modal = document.getElementById("eventModal");
+            modal.style.display = "block"; // Show the modal when the button is clicked
+        };
     </script>
 
 </body>
