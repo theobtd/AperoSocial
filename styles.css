@@ -49,6 +49,7 @@ button:hover {
 }
 
 .event-item {
+    position: relative; /* Allow absolute positioning of children */
     display: flex;
     flex-direction: column; /* Stack items vertically */
     align-items: center;    /* Center items horizontally */
@@ -90,12 +91,6 @@ button:hover {
 .event-item p {
     margin: 5px 0; /* Margin for details */
     color: #555; /* Subtle text color for details */
-}
-
-.modal-content {
-    background-color: #ffffff; /* Ensure modals have a white background */
-    border-radius: 10px; /* Rounded corners on modals */
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2); /* Shadow for depth */
 }
 
 .welcome-message {
@@ -173,10 +168,105 @@ button:hover {
 
 .event-box {
     width: 100%; /* Full width of the screen */
-    max-height: 400px; /* Set a max height */
+    height: 100vh; /* Set height to 100% of the viewport height */
     overflow-y: auto; /* Enable vertical scrolling */
     border: 1px solid #ddd; /* Optional: border for visibility */
     border-radius: 5px; /* Optional: rounded corners */
     padding: 10px; /* Optional: padding inside the box */
     background-color: #fff; /* Background color */
+}
+
+.modal {
+    position: fixed; /* Stay in place */
+    z-index: 1000; /* Sit on top */
+    left: 50%; /* Center the modal */
+    top: 50%; /* Center the modal */
+    transform: translate(-50%, -50%); /* Adjust for the modal's size */
+    background-color: white; /* Background color */
+    padding: 20px; /* Inner spacing */
+    border-radius: 8px; /* Rounded corners */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Shadow */
+    max-width: 500px; /* Max width */
+    width: 100%; /* Responsive width */
+    max-height: 80%; /* Limit the height of the modal */
+    overflow: hidden; /* Hide overflow */
+    display: none; /* Initially hidden */
+}
+
+.modal-content {
+    max-height: 70vh; /* Limit height of modal content */
+    overflow-y: auto; /* Enable vertical scrolling */
+    padding: 10px; /* Inner padding for content */
+}
+
+.carousel {
+    display: flex; /* Use flexbox for layout */
+    align-items: center; /* Center items vertically */
+    justify-content: center; /* Center items horizontally */
+}
+
+.carousel-images {
+    display: flex; /* Allow images to be in a row */
+    overflow: hidden; /* Hide overflow */
+    width: 100%; /* Full width for images */
+    justify-content: center; /* Center images */
+}
+
+.carousel img {
+    max-width: 100px; /* Set a max width for images */
+    margin: 5px; /* Space between images */
+}
+
+.category-tag {
+    position: absolute; /* Position it absolutely within the event item */
+    top: 10px; /* Distance from the top */
+    right: 10px; /* Distance from the right */
+    background-color: #007BFF; /* Background color */
+    color: white; /* Text color */
+    padding: 5px 10px; /* Padding around the text */
+    border-radius: 12px; /* Rounded corners */
+    font-size: 12px; /* Font size */
+    font-weight: bold; /* Make text bold */
+    text-align: center; /* Center the text */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Optional shadow for depth */
+    z-index: 1; /* Ensure it stays on top */
+}
+
+.stadium {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: #f0f0f0; /* Change to your desired background color */
+    border-radius: 50px; /* Creates the stadium shape */
+    text-align: center;
+    margin: 5px;
+    font-weight: bold; /* Optional: make the text bold */
+}
+
+.stadium-container {
+    display: flex; /* Use flexbox layout */
+    align-items: center; /* Center items vertically */
+    gap: 10px; /* Space between stadiums */
+}
+
+.category-tag {
+    position: absolute; /* Position it absolutely within the event item */
+    top: 10px; /* Distance from the top */
+    right: 10px; /* Distance from the right */
+    background-color: #007BFF; /* Background color */
+    color: white; /* Text color */
+    padding: 5px 10px; /* Padding around the text */
+    border-radius: 12px; /* Rounded corners */
+    font-size: 12px; /* Font size */
+    font-weight: bold; /* Make text bold */
+    text-align: center; /* Center the text */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Optional shadow for depth */
+    z-index: 1; /* Ensure it stays on top */
+
+.user-id-container {
+    position: absolute; /* Allow absolute positioning within the event item */
+    top: 10px; /* Distance from the top */
+    left: 10px; /* Distance from the left */
+    display: flex; /* Use flexbox to align items in a row */
+    gap: 5px; /* Space between stadiums */
+    z-index: 1; /* Ensure they stay on top */
 }
