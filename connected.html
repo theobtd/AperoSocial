@@ -5,12 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>You are Connected</title>
     <link rel="stylesheet" href="styles.css"> <!-- Link to external CSS -->
+    
+    <!-- Firebase scripts -->
     <script src="https://www.gstatic.com/firebasejs/9.9.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.9.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.9.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.9.0/firebase-storage-compat.js"></script>
+
+    <!-- Cropper.js -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
 </head>
-<body>    
+<body>   
     <button id="toggleMenuBtn">My Account</button>
     <div class="sidebar" id="sidebar">
         <h2 id="welcomeHeader">Welcome, [userId]!</h2>
@@ -31,14 +37,16 @@
     </div>
 
     <div class="main-content">
-        <h3>All Events</h3>
-        <div>
-            <button id="showPastBtn">Past Events</button>
-            <button id="showFutureBtn">Future Events</button>
-        </div>
-        <button id="createEventBtn">Create Event</button> <!-- Moved here -->
         <div class="event-box">
-            <div class="event-list" id="eventList"></div>
+            <div class="past-events">
+                <h3>Past Events</h3>
+                <div class="event-list" id="pastEventList"></div> <!-- Container for past events -->
+            </div>
+            <button id="createEventBtn">Create Event</button>
+            <div class="future-events">
+                <h3> -- Present -- </h3>
+                <div class="event-list" id="futureEventList"></div> <!-- Container for future events -->
+            </div>
         </div>
         
         <!-- Picture Upload Section -->
@@ -52,7 +60,7 @@
 </body>
 
     <!-- Modal for Event Creation -->
-    <div id="eventModal" class="modal">
+    <div id="eventModal" style="display: none;" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
             <h3>Create Event</h3>
@@ -83,11 +91,11 @@
                 <option value="other">Other</option>
             </select>
             <br>
-            <button id="submitEventBtn">Create Event</button>
-    
-            <h4>Your Friends:</h4>
+
             <button id="selectAllBtn">Select All Friends</button> <!-- Super button -->
             <div id="friendsList" class="friends-list"></div>
+
+            <button id="submitEventBtn">Create Event</button>
         </div>
     </div>
 
@@ -102,8 +110,8 @@
             <!-- Picture Carousel Section -->
             <h3>Event Pictures</h3>
             <div id="eventPicturesCarousel" class="carousel">
-                <div id="carouselImages"></div>
                 <button id="prevBtn">Previous</button>
+                <div id="carouselImages"></div>
                 <button id="nextBtn">Next</button>
             </div>
             
@@ -115,6 +123,14 @@
         
             <button id="joinEventBtn">Join!</button>
             <button id="deleteEventBtn" style="display: none;">Delete Event</button>
+        </div>
+    </div>
+
+    <div id="cropModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999;">
+        <div style="position: relative; width: 90%; margin: auto; top: 50%; transform: translateY(-50%);">
+            <img id="cropperImage" src="" style="max-width: 100%;"/>
+            <button id="cropBtn" style="position: absolute; bottom: 10px; left: 10px;">Crop & Upload</button>
+            <button id="cancelBtn" style="position: absolute; bottom: 10px; right: 10px;">Cancel</button>
         </div>
     </div>
 
@@ -139,108 +155,86 @@
         document.getElementById('uploadPictureBtn').onclick = function () {
             const fileInput = document.getElementById('uploadPictureInput');
             const file = fileInput.files[0]; // Get the selected file
-            
+        
             if (!file) {
                 document.getElementById('uploadStatus').textContent = "Please select a file.";
                 return;
             }
         
-            const currentUser = auth.currentUser;
-            if (currentUser) {
-                const userId = currentUser.uid; // Get the logged-in user's UID
-                
-                // Create a storage reference (folder: "user_pictures", file: "UID/filename")
-                const storageRef = storage.ref(`user_pictures/${userId}/${file.name}`);
-                
-                // Upload the file
-                const uploadTask = storageRef.put(file);
-                
-                // Monitor the upload status
-                uploadTask.on(
-                    'state_changed',
-                    (snapshot) => {
-                        // Progress feedback (optional)
-                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                        document.getElementById('uploadStatus').textContent = `Upload is ${progress.toFixed(0)}% done.`;
-                    },
-                    (error) => {
-                        // Handle unsuccessful uploads
-                        console.error("Error uploading file:", error);
-                        document.getElementById('uploadStatus').textContent = `Error: ${error.message}`;
-                    },
-                    () => {
-                        // Handle successful upload
-                        uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
-                            // Save the download URL to the database under the user's UID
-                            database.ref(`users/${userId}/pictures`).push({
-                                url: downloadURL,
-                                uploadedAt: new Date().toISOString()
-                            }).then(() => {
-                                document.getElementById('uploadStatus').textContent = "Picture uploaded successfully!";
-                                fileInput.value = ''; // Clear the file input
-                            }).catch((error) => {
-                                console.error("Error saving picture URL to database:", error);
-                                document.getElementById('uploadStatus').textContent = `Error: ${error.message}`;
-                            });
-                        });
-                    }
-                );
-            } else {
-                document.getElementById('uploadStatus').textContent = "User not authenticated.";
-            }
+            const imageUrl = URL.createObjectURL(file);
+            const cropImageElement = document.getElementById('cropperImage');
+            cropImageElement.src = imageUrl; // Set the source for cropping
+        
+            const modal = document.getElementById('cropModal');
+            modal.style.display = 'block'; // Show the modal
+
+            const cropper = new Cropper(cropImageElement, {
+                aspectRatio: 1,
+                viewMode: 1,
+            });
+        
+            document.getElementById('cropBtn').onclick = function () {
+                const canvas = cropper.getCroppedCanvas({
+                    width: 1080,
+                    height: 1080,
+                });
+                canvas.toBlob(function(blob) {
+                    uploadCroppedImage(blob); // Call to upload function
+                });
+        
+                modal.style.display = 'none'; // Hide the modal after cropping
+            };
+        
+            document.getElementById('cancelBtn').onclick = function () {
+                modal.style.display = 'none'; // Hide the modal if cancelled
+            };
         };
 
         // Upload picture functionality for event details modal
         document.getElementById('eventUploadPictureBtn').onclick = function () {
             const fileInput = document.getElementById('eventUploadPictureInput');
             const file = fileInput.files[0]; // Get the selected file
+
+            console.log("Upload button clicked"); // Log when the upload button is clicked
             
             if (!file) {
                 document.getElementById('eventUploadStatus').textContent = "Please select a file.";
+                console.warn("No file selected"); // Log a warning if no file is selected
                 return;
             }
         
-            const currentUser = auth.currentUser;
-            if (currentUser) {
-                const userId = currentUser.uid; // Get the logged-in user's UID
-                const eventId = currentEventId;
+            const imageUrl = URL.createObjectURL(file);
+            const cropImageElement = document.getElementById('cropperImage');
+            cropImageElement.src = imageUrl; // Set the source for cropping
+
+            console.log("Image URL created:", imageUrl); // Log the image URL
         
-                // Create a storage reference (folder: "event_pictures", file: "UID/eventId/filename")
-                const storageRef = storage.ref(`event_pictures/${eventId}/${file.name}`);
+            const modal = document.getElementById('cropModal');
+            modal.style.display = 'block'; // Show the crop modal
         
-                // Upload the file
-                const uploadTask = storageRef.put(file);
+            const cropper = new Cropper(cropImageElement, {
+                aspectRatio: 1,
+                viewMode: 1,
+            });
         
-                // Monitor the upload status
-                uploadTask.on(
-                    'state_changed',
-                    (snapshot) => {
-                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                        document.getElementById('eventUploadStatus').textContent = `Upload is ${progress.toFixed(0)}% done.`;
-                    },
-                    (error) => {
-                        console.error("Error uploading file:", error);
-                        document.getElementById('eventUploadStatus').textContent = `Error: ${error.message}`;
-                    },
-                    () => {
-                        uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
-                            // Save the download URL to the database under the event ID
-                            database.ref(`events/${eventId}/pictures`).push({
-                                url: downloadURL,
-                                uploadedAt: new Date().toISOString()
-                            }).then(() => {
-                                document.getElementById('eventUploadStatus').textContent = "Picture uploaded successfully!";
-                                fileInput.value = ''; // Clear the file input
-                            }).catch((error) => {
-                                console.error("Error saving picture URL to database:", error);
-                                document.getElementById('eventUploadStatus').textContent = `Error: ${error.message}`;
-                            });
-                        });
-                    }
-                );
-            } else {
-                document.getElementById('eventUploadStatus').textContent = "User not authenticated.";
-            }
+            document.getElementById('cropBtn').onclick = function () {
+                console.log("Crop button clicked"); // Log when the crop button is clicked
+                const canvas = cropper.getCroppedCanvas({
+                    width: 1080,
+                    height: 1080,
+                });
+                canvas.toBlob(function(blob) {
+                    console.log("Cropped image blob created:", blob); // Log the blob created
+                    uploadCroppedImage(blob); // Call to upload function
+                });
+        
+                modal.style.display = 'none'; // Hide the modal after cropping
+            };
+        
+            document.getElementById('cancelBtn').onclick = function () {
+                console.log("Crop modal cancelled"); // Log when the crop modal is cancelled
+                modal.style.display = 'none'; // Hide the modal if cancelled
+            };
         };
 
         let allUsers = [];
@@ -674,7 +668,8 @@
                     const img = document.createElement('img');
                     img.src = pictureData.url;
                     img.alt = "Event Picture";
-                    img.style.width = "100px"; // Set width as needed
+                    img.style.width = "100%"; // Set width to 100% for full width
+                    img.style.height = "auto"; // Maintain aspect ratio
                     img.style.margin = "5px"; // Add margin
         
                     carouselImages.appendChild(img);
@@ -777,20 +772,12 @@
         // Function to fetch and display events
         function displayAllEvents() {
             const currentUserId = auth.currentUser.uid; // Get current user's Firebase UID
-            const unifiedEventList = document.getElementById('eventList');
-            unifiedEventList.innerHTML = ''; // Clear the list to prevent duplicates
+            const futureEventList = document.getElementById('futureEventList'); // Reference to future events container
+            const pastEventList = document.getElementById('pastEventList'); // Reference to past events container
+            futureEventList.innerHTML = ''; // Clear future events list
+            pastEventList.innerHTML = ''; // Clear past events list
         
             let allEvents = []; // Array to hold all events (yours + friends')
-
-            document.getElementById('showPastBtn').onclick = function() {
-                showFutureEvents = false; // Set to show past events
-                displayAllEvents(); // Refresh the event list
-            };
-            
-            document.getElementById('showFutureBtn').onclick = function() {
-                showFutureEvents = true; // Set to show future events
-                displayAllEvents(); // Refresh the event list
-            };
         
             // Fetch your events
             const yourEventsPromise = database.ref('users/' + currentUserId + '/events').once('value').then(snapshot => {
@@ -876,53 +863,106 @@
 
                         // Add this filtering logic
                     const eventDateTime = new Date(`${event.date}T${event.time}:00`);
-                    const isFutureEvent = eventDateTime > new Date();
-                    const isPastEvent = eventDateTime <= new Date();
+                    const isFutureEvent = eventDateTime > new Date(); // Determine if it's a future event
+
+
                     
                     // Modify the visibility check to incorporate filtering
-                    if (isVisible && ((showFutureEvents && isFutureEvent) || (!showFutureEvents && isPastEvent))) {
+                    if (isVisible) {
+                    // Create the event DOM element
                         const eventItem = document.createElement('div');
                         eventItem.classList.add('event-item');
-                        eventItem.style.backgroundColor = categoryColors[event.category] || '#FFFFFF';
-        
-                        const eventOwner = (event.createdBy === currentUserId) ? '(Your Event)' : `(Created by: ${event.userId})`;
-        
-                        const eventContent = document.createElement('div');
-                        eventContent.classList.add('event-content');
-                        eventContent.textContent = `${event.title} - ${event.date} at ${event.time} ${eventOwner}
-                            | Comment: ${event.comment || 'No comment'} 
-                            | Location: ${event.location || 'Not specified'} 
-                            | Category: ${event.category || 'Not specified'}`;
+                        eventItem.style.backgroundColor = '#FFFFFF'; // Set to white or desired neutral color
 
-                        // Add this code right after creating the eventContent
-                        const participantList = document.createElement('div');
-                        participantList.classList.add('participant-list'); // Add a class for styling
-                        eventItem.appendChild(participantList); // Append the participant list to the event item
+                        // Create a flex container for stadiums
+                        const stadiumContainer = document.createElement('div');
+                        stadiumContainer.classList.add('stadium-container'); // Add a class for styling
+
+                        // Create a container for user ID stadiums
+                        const userIdContainer = document.createElement('div');
+                        userIdContainer.classList.add('user-id-container');
+
+                        // Create stadium for event creator's userId
+                        const creatorStadium = document.createElement('div');
+                        creatorStadium.classList.add('stadium');
+                        creatorStadium.textContent = event.userId; // Set text to the event creator's userId
+                        userIdContainer.appendChild(creatorStadium); // Append to the user ID container
                         
                         // Fetch participants for the event
                         database.ref(`users/${event.createdBy}/events/${event.id}/participants`).once('value').then(participantSnapshot => {
                             const participantUids = participantSnapshot.val() || []; // Get the list of UIDs
                         
-                            if (participantUids.length === 0) {
-                                participantList.textContent = "No participants yet."; // Message if no participants
-                            } else {
-                                participantUids.forEach(uid => {
-                                    database.ref(`users/${uid}`).once('value').then(userSnapshot => {
-                                        const userData = userSnapshot.val();
-                                        const userId = userData ? userData.userId : "Unknown User"; // Fallback
-                                        const participantItem = document.createElement('div');
-                                        participantItem.textContent = userId; // Display the userId
-                                        participantList.appendChild(participantItem); // Add to the participant list
-                                    }).catch(error => {
-                                        console.error("Error fetching userId for UID:", uid, error);
-                                    });
+                            // Create stadiums for each participant
+                            participantUids.forEach(uid => {
+                                database.ref(`users/${uid}`).once('value').then(userSnapshot => {
+                                    const userData = userSnapshot.val();
+                                    const participantUserId = userData ? userData.userId : "Unknown User"; // Fallback if userId is not found
+                                    
+                                    // Create stadium for the participant
+                                    const participantStadium = document.createElement('div');
+                                    participantStadium.classList.add('stadium');
+                                    participantStadium.textContent = participantUserId; // Set text to participant's userId
+                                    stadiumContainer.appendChild(participantStadium); // Append participant stadium to the container
                                 });
-                            }
-                        }).catch(error => {
-                            console.error("Error fetching participants:", error);
-                            participantList.textContent = "Unable to load participants."; // Display error message
+                            });
+
+                        // Fetch participants for the event
+                        database.ref(`users/${event.createdBy}/events/${event.id}/participants`).once('value').then(participantSnapshot => {
+                            const participantUids = participantSnapshot.val() || []; // Get the list of UIDs
+                            
+                            // Create stadiums for each participant
+                            participantUids.forEach(uid => {
+                                database.ref(`users/${uid}`).once('value').then(userSnapshot => {
+                                    const userData = userSnapshot.val();
+                                    const participantUserId = userData ? userData.userId : "Unknown User"; // Fallback if userId is not found
+                            
+                                    // Create stadium for the participant
+                                    const participantStadium = document.createElement('div');
+                                    participantStadium.classList.add('stadium');
+                                    participantStadium.textContent = participantUserId; // Set text to participant's userId
+                                    userIdContainer.appendChild(participantStadium); // Append to the user ID container
+                                });
+                            });
+                            
+                            // Append the user ID container to the event item
+                            eventItem.appendChild(userIdContainer);
+                        });
+                            
+                            // Append the stadium container to the event item after all stadiums are created
+                            eventItem.appendChild(stadiumContainer);
+
+                            // Create a stadium for the event category
+                            const categoryStadium = document.createElement('div');
+                            categoryStadium.classList.add('stadium', 'category-tag'); // Use your category class
+                            categoryStadium.textContent = event.category; // Set text to event category
+                            categoryStadium.style.backgroundColor = categoryColors[event.category] || '#FFFFFF'; // Apply the color code
+                            eventItem.appendChild(categoryStadium); // Append category stadium to the event item
+
+                            // Create a stadium for the event date
+                            const dateStadium = document.createElement('div');
+                            dateStadium.classList.add('stadium');
+                            dateStadium.textContent = formatDate(`${event.date}`); // Use the formatDate function
+                            eventItem.appendChild(dateStadium); // Append date stadium to the event item
+
+                            // Create a stadium for the event time
+                            const timeStadium = document.createElement('div');
+                            timeStadium.classList.add('stadium');
+                            timeStadium.textContent = formatTime(event.time); // Use the formatTime function
+                            eventItem.appendChild(timeStadium); // Append time stadium to the event item
+
+                            // Create a stadium for the event location
+                            const locationStadium = document.createElement('div');
+                            locationStadium.classList.add('stadium');
+                            locationStadium.textContent = event.location || 'Location not specified'; // Set text to event location
+                            eventItem.appendChild(locationStadium); // Append location stadium to the event item
                         });
 
+                        // Existing button container setup
+                        const buttonContainer = document.createElement('div');
+                        buttonContainer.style.display = 'flex';
+                        buttonContainer.style.flexDirection = 'column';
+                        buttonContainer.style.gap = '10px';
+                        
                         // Create the Delete button
                         const deleteButton = document.createElement('button');
                         deleteButton.textContent = 'Delete Event';
@@ -936,21 +976,16 @@
                             };
                         }
                         
-                        // Append the delete button to the event item
-                        eventItem.appendChild(deleteButton);
-        
-                        const buttonContainer = document.createElement('div');
-                        buttonContainer.style.display = 'flex';
-                        buttonContainer.style.flexDirection = 'column';
-                        buttonContainer.style.gap = '10px';
-        
-                        // Only show the "Join!" button if the current user is NOT the creator of the event
+                        // Append the delete button to the button container
+                        buttonContainer.appendChild(deleteButton);
+                        
+                        // Add the join button if applicable
                         if (event.createdBy !== currentUserId) {
                             const joinButton = document.createElement('button');
                             joinButton.classList.add('join-btn');
                             joinButton.textContent = 'Join';
                             joinButton.style.marginLeft = 'auto';
-        
+                        
                             database.ref(`users/${event.createdBy}/events/${event.id}/participants`).once('value').then(snapshot => {
                                 const participants = snapshot.val() || [];
                                 const isParticipant = participants.includes(currentUserId);
@@ -959,9 +994,59 @@
                                     toggleParticipation(event.createdBy, event.id, currentUserId, joinButton);
                                 };
                             });
-        
+                        
                             buttonContainer.appendChild(joinButton); // Add the join button if applicable
                         }
+                        
+                        // Append the button container to the event item
+                        eventItem.appendChild(buttonContainer);
+        
+                        // const eventOwner = (event.createdBy === currentUserId) ? '(Your Event)' : `(Created by: ${event.userId})`;
+        
+                        const eventContent = document.createElement('div');
+                        // eventContent.classList.add('event-content');
+                        // eventContent.textContent = `${event.title} - ${event.date} at ${event.time} ${eventOwner}
+                           //  | Comment: ${event.comment || 'No comment'} 
+                           // | Location: ${event.location || 'Not specified'} 
+                           // | Category: ${event.category || 'Not specified'}`;
+
+                        // Append to the appropriate list
+                        if (isFutureEvent) {
+                            futureEventList.appendChild(eventItem); // Add to future events list
+                        } else {
+                            pastEventList.appendChild(eventItem); // Add to past events list
+                        }
+
+                        // Add this code right after creating the eventContent
+                        // const participantList = document.createElement('div');
+                        // participantList.classList.add('participant-list'); // Add a class for styling
+                        // eventItem.appendChild(participantList); // Append the participant list to the event item
+                        
+                        // Fetch participants for the event
+                        database.ref(`users/${event.createdBy}/events/${event.id}/participants`).once('value').then(participantSnapshot => {
+                            const participantUids = participantSnapshot.val() || []; // Get the list of UIDs
+                        
+                            if (participantUids.length === 0) {
+                                // participantList.textContent = "No participants yet."; // Message if no participants
+                            } else {
+                                participantUids.forEach(uid => {
+                                    database.ref(`users/${uid}`).once('value').then(userSnapshot => {
+                                        const userData = userSnapshot.val();
+                                        const userId = userData ? userData.userId : "Unknown User"; // Fallback
+                                        const participantItem = document.createElement('div');
+                                        // participantItem.textContent = userId; // Display the userId
+                                        // participantList.appendChild(participantItem); // Add to the participant list
+                                    }).catch(error => {
+                                        console.error("Error fetching userId for UID:", uid, error);
+                                    });
+                                });
+                            }
+                        }).catch(error => {
+                            console.error("Error fetching participants:", error);
+                            participantList.textContent = "Unable to load participants."; // Display error message
+                        });
+
+        
 
                         participantList.classList.add('participant-list');
                         eventItem.appendChild(participantList); // Append the participant list to the event item
@@ -978,7 +1063,6 @@
         
                         buttonContainer.appendChild(picturesButton); // Add pictures button
                         eventItem.appendChild(eventContent);
-                        eventItem.appendChild(buttonContainer);
                         // Create a container for the upload section
                         const uploadContainer = document.createElement('div');
 
@@ -998,52 +1082,78 @@
                                     return;
                                 }
                         
-                                const currentUser = auth.currentUser;
-                                if (currentUser) {
-                                    const userId = currentUser.uid; // Get the logged-in user's UID
-                                    const eventId = event.id; // Get the current event ID
+                                const imageUrl = URL.createObjectURL(file);
+                                const cropImageElement = document.getElementById('cropperImage');
+                                cropImageElement.src = imageUrl; // Set the source for cropping
                         
-                                    // Create a storage reference (folder: "event_pictures", file: "UID/eventId/filename")
-                                    const storageRef = storage.ref(`event_pictures/${eventId}/${file.name}`);
+                                const modal = document.getElementById('cropModal');
+                                modal.style.display = 'block'; // Show the crop modal
                         
-                                    // Upload the file
-                                    const uploadTask = storageRef.put(file);
+                                const cropper = new Cropper(cropImageElement, {
+                                    aspectRatio: 1,
+                                    viewMode: 1,
+                                });
                         
-                                    // Monitor the upload status
-                                    uploadTask.on(
-                                        'state_changed',
-                                        (snapshot) => {
-                                            // Optional: Progress feedback
-                                            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                                            console.log(`Upload is ${progress.toFixed(0)}% done.`);
-                                        },
-                                        (error) => {
-                                            console.error("Error uploading file:", error);
-                                            alert(`Error: ${error.message}`);
-                                        },
-                                        () => {
-                                            // Handle successful upload
-                                            uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
-                                                // Save the download URL to the database under the event ID
-                                                database.ref(`events/${eventId}/pictures`).push({
-                                                    url: downloadURL,
-                                                    uploadedAt: new Date().toISOString()
-                                                }).then(() => {
-                                                    alert("Picture uploaded successfully!");
-                                                }).catch((error) => {
-                                                    console.error("Error saving picture URL to database:", error);
-                                                    alert(`Error: ${error.message}`);
-                                                });
-                                            });
-                                        }
-                                    );
-                                } else {
-                                    alert("User not authenticated.");
-                                }
+                                document.getElementById('cropBtn').onclick = function () {
+                                    const canvas = cropper.getCroppedCanvas({
+                                        width: 1080,
+                                        height: 1080,
+                                    });
+                                    canvas.toBlob(function(blob) {
+                                        uploadCroppedImage(blob); // Call to upload function
+                                    });
+                        
+                                    modal.style.display = 'none'; // Hide the modal after cropping
+                                };
+                        
+                                document.getElementById('cancelBtn').onclick = function () {
+                                    modal.style.display = 'none'; // Hide the modal if cancelled
+                                };
                             };
                         
                             fileInput.click(); // Trigger the file input dialog
                         };
+                        
+                        function uploadCroppedImage(blob) {
+                            const currentUser = auth.currentUser;
+                            if (currentUser) {
+                                const userId = currentUser.uid; // Get the logged-in user's UID
+                                const eventId = event.id; // Ensure this is set correctly
+                        
+                                // Create a storage reference
+                                const storageRef = storage.ref(`event_pictures/${eventId}/cropped_${Date.now()}.jpg`);
+                        
+                                const uploadTask = storageRef.put(blob);
+                        
+                                uploadTask.on(
+                                    'state_changed',
+                                    (snapshot) => {
+                                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                                        console.log(`Upload is ${progress.toFixed(0)}% done.`); // Log upload progress
+                                    },
+                                    (error) => {
+                                        console.error("Error uploading cropped image:", error);
+                                        alert(`Error: ${error.message}`);
+                                    },
+                                    () => {
+                                        uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
+                                            // Save the download URL to the database under the event ID
+                                            database.ref(`events/${eventId}/pictures`).push({
+                                                url: downloadURL,
+                                                uploadedAt: new Date().toISOString()
+                                            }).then(() => {
+                                                alert("Picture uploaded successfully!");
+                                            }).catch((error) => {
+                                                console.error("Error saving picture URL to database:", error);
+                                                alert(`Error: ${error.message}`);
+                                            });
+                                        });
+                                    }
+                                );
+                            } else {
+                                alert("User not authenticated.");
+                            }
+                        }
 
                         // Append the new button to the button container
                         buttonContainer.appendChild(singleUploadButton);
@@ -1051,7 +1161,17 @@
                         // Create picture carousel container
                         const picturesContainer = document.createElement('div');
                         const prevButton = document.createElement('button');
+                        prevButton.textContent = '<';
+                        prevButton.style.position = 'absolute';
+                        prevButton.style.left = '10px'; // Change this value to adjust
+                        prevButton.style.top = '50%'; // Center vertically
+                        prevButton.style.transform = 'translateY(-50%)'; // Adjust for centering
                         const nextButton = document.createElement('button');
+                        nextButton.textContent = '>';
+                        nextButton.style.position = 'absolute';
+                        nextButton.style.right = '10px'; // Change this value to adjust
+                        nextButton.style.top = '50%'; // Center vertically
+                        nextButton.style.transform = 'translateY(-50%)'; // Adjust for centering
                         let currentIndex = 0;
                         let images = [];
         
@@ -1068,7 +1188,8 @@
                                 img.src = pictureData.url;
                                 img.alt = "Event Picture";
                                 img.style.display = 'none'; // Start with images hidden
-                                img.style.width = "100px"; // Set width as needed
+                                img.style.width = "100%"; // Set width to 100% for full width
+                                img.style.height = "auto"; // Maintain aspect ratio
                                 img.style.margin = "5px"; // Add margin
                                 picturesContainer.appendChild(img); // Add to the pictures container
                                 images.push(img); // Store image elements for navigation
@@ -1092,7 +1213,7 @@
                         });
         
                         // Previous button functionality
-                        prevButton.textContent = 'Previous';
+                        prevButton.textContent = '<';
                         prevButton.onclick = function() {
                             if (images.length > 0) {
                                 images[currentIndex].style.display = 'none'; // Hide current image
@@ -1102,7 +1223,7 @@
                         };
         
                         // Next button functionality
-                        nextButton.textContent = 'Next';
+                        nextButton.textContent = '>';
                         nextButton.onclick = function() {
                             if (images.length > 0) {
                                 images[currentIndex].style.display = 'none'; // Hide current image
@@ -1115,12 +1236,53 @@
                         eventItem.appendChild(picturesContainer); // Append pictures container
                         eventItem.appendChild(prevButton); // Append previous button
                         eventItem.appendChild(nextButton); // Append next button
-                        unifiedEventList.appendChild(eventItem);
                     }
                 });
+
+                // Scroll to the soonest future event
+                const soonestFutureEvent = allEvents.find(event => {
+                    const eventDateTime = new Date(`${event.date}T${event.time}:00`);
+                    return eventDateTime > new Date(); // Find the first future event
+                });
+                
+                if (soonestFutureEvent) {
+                    const futureEventList = document.getElementById('futureEventList');
+                    const eventItems = futureEventList.getElementsByClassName('event-item');
+                    
+                    // Find the matching DOM element for the soonest future event
+                    for (let eventItem of eventItems) {
+                        if (eventItem.textContent.includes(soonestFutureEvent.title)) {
+                            // Scroll the event-box container to the soonest future event
+                            const eventBox = document.querySelector('.event-box');
+                            eventBox.scrollTop = eventItem.offsetTop - eventBox.offsetHeight / 2;
+                            break;
+                        }
+                    }
+                }
             }).catch(error => {
                 console.error("Error fetching events:", error);
             });
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const options = { day: 'numeric', month: 'long', year: 'numeric' };
+            const formattedDate = date.toLocaleDateString('en-US', options);
+            
+            // Add the ordinal suffix (st, nd, rd, th) to the day
+            const day = date.getDate();
+            const suffix = day % 10 === 1 && day !== 11 ? 'st' :
+                           day % 10 === 2 && day !== 12 ? 'nd' :
+                           day % 10 === 3 && day !== 13 ? 'rd' : 'th';
+            
+            return formattedDate.replace(/(\d+)/, `${day}${suffix}`);
+        }
+
+        function formatTime(timeString) {
+            const [hours, minutes] = timeString.split(':').map(Number);
+            const period = hours >= 12 ? 'p.m.' : 'a.m.';
+            const formattedHour = hours % 12 || 12; // Convert 0 to 12 for 12 AM
+            return `${formattedHour}:${minutes.toString().padStart(2, '0')} ${period}`;
         }
         
         // Log out function
@@ -1132,63 +1294,11 @@
             });
         };
 
-        // Upload picture functionality
-        document.getElementById('uploadPictureBtn').onclick = function () {
-            const fileInput = document.getElementById('uploadPictureInput');
-            const file = fileInput.files[0]; // Get the selected file
-            
-            if (!file) {
-                document.getElementById('uploadStatus').textContent = "Please select a file.";
-                return;
-            }
-        
-            const currentUser = auth.currentUser;
-            if (currentUser) {
-                const userId = currentUser.uid; // Get the logged-in user's UID
-                
-                // Create a storage reference (folder: "user_pictures", file: "UID/filename")
-                const storageRef = storage.ref(`user_pictures/${userId}/${file.name}`);
-        
-                // Upload the file
-                const uploadTask = storageRef.put(file);
-        
-                // Monitor the upload status
-                uploadTask.on(
-                    'state_changed',
-                    (snapshot) => {
-                        // Progress feedback (optional)
-                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                        document.getElementById('uploadStatus').textContent = `Upload is ${progress.toFixed(0)}% done.`;
-                    },
-                    (error) => {
-                        // Handle unsuccessful uploads
-                        console.error("Error uploading file:", error);
-                        document.getElementById('uploadStatus').textContent = `Error: ${error.message}`;
-                    },
-                    () => {
-                        // Handle successful upload
-                        uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
-                            // Save the download URL to the database under the user's UID
-                            database.ref(`users/${userId}/pictures`).push({
-                                url: downloadURL,
-                                uploadedAt: new Date().toISOString()
-                            }).then(() => {
-                                document.getElementById('uploadStatus').textContent = "Picture uploaded successfully!";
-                                fileInput.value = ''; // Clear the file input
-                            }).catch((error) => {
-                                console.error("Error saving picture URL to database:", error);
-                                document.getElementById('uploadStatus').textContent = `Error: ${error.message}`;
-                            });
-                        });
-                    }
-                );
-            } else {
-                document.getElementById('uploadStatus').textContent = "User not authenticated.";
-            }
-        };
-
         // Create event button functionality
-        document.getElementById('createEventBtn').onclick = createEvent;
+        // Create event button functionality
+        document.getElementById('createEventBtn').onclick = function() {
+            createEvent(); // Call the createEvent function
+        };
 
         // Event modal functionality
         document.getElementById("submitEventBtn").onclick = submitEvent;
@@ -1243,15 +1353,21 @@
                 eventDetailsModal.style.display = "none"; // Hide event details modal
         });
 
+        // Event listener for clicks outside the modal content
+        window.onclick = function(event) {
+            const modal = document.getElementById("eventModal");
+            const modalContent = document.querySelector('.modal-content');
+        
+            // Check if the click was outside the modal content
+            if (event.target === modal) {
+                closeModal(); // Close the modal if clicked outside
+            }
+        };
+
         // Event modal functionality
         document.getElementById("submitEventBtn").onclick = submitEvent;
         document.getElementsByClassName("close")[0].onclick = closeModal;
         
-        // Create event button functionality
-        document.getElementById('createEventBtn').onclick = function() {
-            const modal = document.getElementById("eventModal");
-            modal.style.display = "block"; // Show the modal when the button is clicked
-        };
     </script>
 
 </body>
