@@ -38,8 +38,10 @@
 
     <div class="main-content">
         <div class="event-box">
-            <button id="toggleMenuBtn" style="width: 200px; height: 50px;">My Account</button>
-            <button id="createEventBtn" style="width: 200px; height: 50px;">Create Event</button>
+            <div class="event-controls">
+                <button id="createEventBtn" style="width: 125px; height: 50px;">Create Event</button>
+                <button id="toggleMenuBtn" style="width: 125px; height: 50px;">My Account</button>
+            </div>
             <button id="toggleEventsBtn">Show Future Events</button>
             <div class="past-events">
                 <div class="event-list" id="pastEventList"></div> <!-- Container for past events -->
@@ -150,45 +152,6 @@
         const auth = firebase.auth();
         const database = firebase.database();
         const storage = firebase.storage(); // Initialize Firebase Storage
-
-        // Upload picture functionality
-        document.getElementById('uploadPictureBtn').onclick = function () {
-            const fileInput = document.getElementById('uploadPictureInput');
-            const file = fileInput.files[0]; // Get the selected file
-        
-            if (!file) {
-                document.getElementById('uploadStatus').textContent = "Please select a file.";
-                return;
-            }
-        
-            const imageUrl = URL.createObjectURL(file);
-            const cropImageElement = document.getElementById('cropperImage');
-            cropImageElement.src = imageUrl; // Set the source for cropping
-        
-            const modal = document.getElementById('cropModal');
-            modal.style.display = 'block'; // Show the modal
-
-            const cropper = new Cropper(cropImageElement, {
-                aspectRatio: 1,
-                viewMode: 1,
-            });
-        
-            document.getElementById('cropBtn').onclick = function () {
-                const canvas = cropper.getCroppedCanvas({
-                    width: 1080,
-                    height: 1080,
-                });
-                canvas.toBlob(function(blob) {
-                    uploadCroppedImage(blob); // Call to upload function
-                });
-        
-                modal.style.display = 'none'; // Hide the modal after cropping
-            };
-        
-            document.getElementById('cancelBtn').onclick = function () {
-                modal.style.display = 'none'; // Hide the modal if cancelled
-            };
-        };
 
         // Upload picture functionality for event details modal
         document.getElementById('eventUploadPictureBtn').onclick = function () {
@@ -496,17 +459,74 @@
         // Function to accept a friend request
         function acceptFriendRequest(requesterId) {
             const currentUserId = auth.currentUser.uid; // Get current user's Firebase UID
-            
+        
             // Update the database to change the status of the friend request
             database.ref('users/' + currentUserId + '/friendRequests/' + requesterId).update({
                 status: 'accepted'
             }).then(() => {
                 console.log("Friend request from " + requesterId + " accepted.");
-                // Also update the sender's request status to accepted
+        
+                // Update the sender's request status to accepted
                 database.ref('users/' + requesterId + '/friendRequests/' + currentUserId).set({
                     requestingUserId: currentUserId,
                     status: 'accepted'
                 }).then(() => {
+                    // Fetch requester's events
+                    database.ref('users/' + requesterId + '/events').once('value').then(snapshot => {
+                        const events = snapshot.val();
+                        if (events) {
+                            const eventIds = Object.keys(events);
+        
+                            // Add currentUserId to the visibleTo field of each event
+                            eventIds.forEach(eventId => {
+                                database.ref(`users/${requesterId}/events/${eventId}/visibleTo`).once('value').then(visibleToSnapshot => {
+                                    const visibleTo = visibleToSnapshot.val() || [];
+                                    if (!visibleTo.includes(currentUserId)) {
+                                        database.ref(`users/${requesterId}/events/${eventId}`).update({
+                                            visibleTo: [...visibleTo, currentUserId]
+                                        }).then(() => {
+                                            console.log(`Added ${currentUserId} to visibleTo for event ${eventId}`);
+                                        }).catch(error => {
+                                            console.error("Error updating event viewers:", error);
+                                        });
+                                    }
+                                });
+                            });
+                        } else {
+                            console.log("No events found for requester.");
+                        }
+                    }).catch(error => {
+                        console.error("Error fetching requester's events:", error);
+                    });
+        
+                    // Fetch current user's events
+                    database.ref('users/' + currentUserId + '/events').once('value').then(snapshot => {
+                        const events = snapshot.val();
+                        if (events) {
+                            const eventIds = Object.keys(events);
+        
+                            // Add requesterId to the visibleTo field of each event
+                            eventIds.forEach(eventId => {
+                                database.ref(`users/${currentUserId}/events/${eventId}/visibleTo`).once('value').then(visibleToSnapshot => {
+                                    const visibleTo = visibleToSnapshot.val() || [];
+                                    if (!visibleTo.includes(requesterId)) {
+                                        database.ref(`users/${currentUserId}/events/${eventId}`).update({
+                                            visibleTo: [...visibleTo, requesterId]
+                                        }).then(() => {
+                                            console.log(`Added ${requesterId} to visibleTo for event ${eventId}`);
+                                        }).catch(error => {
+                                            console.error("Error updating event viewers:", error);
+                                        });
+                                    }
+                                });
+                            });
+                        } else {
+                            console.log("No events found for current user.");
+                        }
+                    }).catch(error => {
+                        console.error("Error fetching user's events:", error);
+                    });
+        
                     displayPendingRequests(); // Refresh the pending requests display
                     displayAcceptedFriends(); // Refresh the accepted friends display
                     displayAllEvents(); // Refresh friends' events display
@@ -1396,11 +1416,15 @@
                 content.style.display = "block"; // Show the content
             }
         }
-        
-        // Add event listener to the toggle button
+
         document.getElementById('toggleMenuBtn').onclick = function() {
             const sidebar = document.getElementById('sidebar');
-            sidebar.style.display = sidebar.style.display === "none" ? "block" : "none"; // Toggle sidebar visibility
+            sidebar.style.display = sidebar.style.display === 'none' ? 'block' : 'none'; // Toggle visibility
+            if (sidebar.style.display === 'block') {
+                sidebar.style.left = '0'; // Ensure it's visible
+            } else {
+                sidebar.style.left = '-250px'; // Hide it off-screen
+            }
         };
 
         document.getElementById('toggleEventsBtn').onclick = function() {
@@ -1441,6 +1465,47 @@
             const messageDiv = document.getElementById('toggleMessage');
             messageDiv.style.display = messageDiv.style.display === 'none' ? 'block' : 'none'; // Toggle display
         };
+
+        // Upload picture functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('uploadPictureBtn').onclick = function () {
+                const fileInput = document.getElementById('uploadPictureInput');
+                const file = fileInput.files[0]; // Get the selected file
+            
+                if (!file) {
+                    document.getElementById('uploadStatus').textContent = "Please select a file.";
+                    return;
+                }
+            
+                const imageUrl = URL.createObjectURL(file);
+                const cropImageElement = document.getElementById('cropperImage');
+                cropImageElement.src = imageUrl; // Set the source for cropping
+            
+                const modal = document.getElementById('cropModal');
+                modal.style.display = 'block'; // Show the modal
+    
+                const cropper = new Cropper(cropImageElement, {
+                    aspectRatio: 1,
+                    viewMode: 1,
+                });
+            
+                document.getElementById('cropBtn').onclick = function () {
+                    const canvas = cropper.getCroppedCanvas({
+                        width: 1080,
+                        height: 1080,
+                    });
+                    canvas.toBlob(function(blob) {
+                        uploadCroppedImage(blob); // Call to upload function
+                    });
+            
+                    modal.style.display = 'none'; // Hide the modal after cropping
+                };
+            
+                document.getElementById('cancelBtn').onclick = function () {
+                    modal.style.display = 'none'; // Hide the modal if cancelled
+                };
+            };
+        });
     </script>
 
 </body>
