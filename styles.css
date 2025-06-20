@@ -65,14 +65,13 @@ button:hover {
 }
 
 .join-btn {
-    padding: 5px 10px; /* Adjust padding for smaller size */
-    font-size: 14px; /* Slightly smaller font */
-    background-color: #007BFF; /* Match primary button color */
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background-color 0.3s;
+    padding: 10px 15px; /* Match padding of delete button */
+    font-size: 16px; /* Match font size of delete button */
+    border: none; /* No border */
+    border-radius: 5px; /* Rounded corners */
+    color: white; /* White text color */
+    cursor: pointer; /* Pointer cursor on hover */
+    transition: background-color 0.3s; /* Smooth background color transition */
 }
 
 .join-btn:hover {
@@ -269,4 +268,24 @@ button:hover {
     display: flex; /* Use flexbox to align items in a row */
     gap: 5px; /* Space between stadiums */
     z-index: 1; /* Ensure they stay on top */
+}
+
+.upload-container {
+    position: absolute; /* Ensure the container is positioned relative */
+    top: 10px;
+    right: 10px;
+    z-index: 1;
+}
+
+.single-upload-button {
+    position: absolute; /* Absolute positioning */
+    bottom: 10px; /* Distance from the bottom */
+    left: 50%; /* Center horizontally */
+    transform: translateX(-50%); /* Adjust for centering */
+}
+
+.comment-stadium {
+    font-size: 0.9em; /* Make the font smaller */
+    font-weight: normal; /* Remove bold formatting */
+    color: #555; /* Optional: Change text color for less emphasis */
 }
