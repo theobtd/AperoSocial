@@ -17,34 +17,34 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
 </head>
 <body>   
-    <button id="toggleMenuBtn">My Account</button>
+
     <div class="sidebar" id="sidebar">
         <h2 id="welcomeHeader">Welcome, [userId]!</h2>
-    
+        
         <!-- Directly include the search bar and lists -->
         <input type="text" id="userSearchBar" placeholder="Search by User ID" oninput="filterUsers()">
-
+    
         <!-- User list for search results -->
         <div class="user-list" id="userList"></div> <!-- Ensure this is still included -->
-        
+            
         <h3>Pending Friend Requests</h3>
         <div class="request-list" id="requestList"></div>
-    
+        
         <h3>Accepted Friends</h3>
         <div class="accepted-list" id="acceptedList"></div>
-
+    
         <button id="logoutBtn">Log Out</button>
     </div>
 
     <div class="main-content">
         <div class="event-box">
+            <button id="toggleMenuBtn" style="width: 200px; height: 50px;">My Account</button>
+            <button id="createEventBtn" style="width: 200px; height: 50px;">Create Event</button>
+            <button id="toggleEventsBtn">Show Future Events</button>
             <div class="past-events">
-                <h3>Past Events</h3>
                 <div class="event-list" id="pastEventList"></div> <!-- Container for past events -->
             </div>
-            <button id="createEventBtn">Create Event</button>
             <div class="future-events">
-                <h3> -- Present -- </h3>
                 <div class="event-list" id="futureEventList"></div> <!-- Container for future events -->
             </div>
         </div>
@@ -242,6 +242,9 @@
         let currentImageIndex = 0;
 
         let showFutureEvents = true; // Default to showing future events
+
+        // Add this line to set the button text based on the initial state
+        document.getElementById('toggleEventsBtn').textContent = showFutureEvents ? 'Show Past Events' : 'Show Future Events';
 
         document.getElementById('prevBtn').onclick = function () {
             const images = document.querySelectorAll('#carouselImages img');
@@ -717,7 +720,7 @@
 
         function toggleParticipation(creatorId, eventId, userId, button) {
             const participantsRef = database.ref(`users/${creatorId}/events/${eventId}/participants`);
-        
+            
             participantsRef.once('value').then(snapshot => {
                 let participants = snapshot.val() || []; // Get the current list of participants
         
@@ -725,17 +728,21 @@
                     // User is already a participant, remove them
                     participants = participants.filter(participant => participant !== userId);
                     button.textContent = 'Join!'; // Update button text
+                    button.style.backgroundColor = 'green'; // Set to green
                 } else {
                     // User is not a participant, add them
                     participants.push(userId);
                     button.textContent = 'Leave Event'; // Update button text
+                    button.style.backgroundColor = 'red'; // Set to red
                 }
         
                 // Update the participants list in the database
                 participantsRef.set(participants)
                     .then(() => {
                         console.log(`Participation toggled for user ${userId} in event ${eventId}`);
-                        displayAllEvents(); // Refresh the event list
+                        
+                        // Refresh the participant list in the UI
+                        // refreshParticipants(creatorId, eventId);
                     })
                     .catch(error => {
                         console.error('Error updating participants:', error);
@@ -854,7 +861,7 @@
                 allEvents.sort((a, b) => {
                     const dateTimeA = new Date(`${a.date}T${a.time}:00`);
                     const dateTimeB = new Date(`${b.date}T${b.time}:00`);
-                    return showFutureEvents ? dateTimeA - dateTimeB : dateTimeB - dateTimeA; // Reverse order for past events
+                    return showFutureEvents ? dateTimeA - dateTimeB : dateTimeB - dateTimeA; // Sort correctly based on state
                 });
         
                 allEvents.forEach(event => {
@@ -864,15 +871,25 @@
                         // Add this filtering logic
                     const eventDateTime = new Date(`${event.date}T${event.time}:00`);
                     const isFutureEvent = eventDateTime > new Date(); // Determine if it's a future event
-
-
                     
                     // Modify the visibility check to incorporate filtering
-                    if (isVisible) {
+                    if (isVisible && (showFutureEvents ? isFutureEvent : !isFutureEvent)) {
                     // Create the event DOM element
                         const eventItem = document.createElement('div');
                         eventItem.classList.add('event-item');
                         eventItem.style.backgroundColor = '#FFFFFF'; // Set to white or desired neutral color
+
+                        // Create a stadium for the event title
+                        const titleStadium = document.createElement('div');
+                        titleStadium.classList.add('stadium'); // Add class for styling
+                        titleStadium.textContent = event.title; // Set text to the event title
+                        eventItem.appendChild(titleStadium); // Append the title stadium to the event item
+
+                        // Create a stadium for the event comment
+                        const commentStadium = document.createElement('div');
+                        commentStadium.classList.add('stadium', 'comment-stadium'); // Add class for styling
+                        commentStadium.textContent = event.comment; // Set text to the event comment
+                        eventItem.appendChild(commentStadium); // Append the comment stadium to the event item
 
                         // Create a flex container for stadiums
                         const stadiumContainer = document.createElement('div');
@@ -880,6 +897,7 @@
 
                         // Create a container for user ID stadiums
                         const userIdContainer = document.createElement('div');
+                        const participantList = document.createElement('div'); // Create participant list container
                         userIdContainer.classList.add('user-id-container');
 
                         // Create stadium for event creator's userId
@@ -891,6 +909,9 @@
                         // Fetch participants for the event
                         database.ref(`users/${event.createdBy}/events/${event.id}/participants`).once('value').then(participantSnapshot => {
                             const participantUids = participantSnapshot.val() || []; // Get the list of UIDs
+
+                            // Clear the participant list before adding new entries
+                            participantList.innerHTML = ''; // Ensure this is cleared beforehand
                         
                             // Create stadiums for each participant
                             participantUids.forEach(uid => {
@@ -898,11 +919,11 @@
                                     const userData = userSnapshot.val();
                                     const participantUserId = userData ? userData.userId : "Unknown User"; // Fallback if userId is not found
                                     
-                                    // Create stadium for the participant
-                                    const participantStadium = document.createElement('div');
-                                    participantStadium.classList.add('stadium');
-                                    participantStadium.textContent = participantUserId; // Set text to participant's userId
-                                    stadiumContainer.appendChild(participantStadium); // Append participant stadium to the container
+                                   // Create stadium for the participant
+                                   // const participantStadium = document.createElement('div');
+                                   // participantStadium.classList.add('stadium');
+                                   // participantStadium.textContent = participantUserId; // Set text to participant's userId
+                                   // stadiumContainer.appendChild(participantStadium); // Append participant stadium to the container
                                 });
                             });
 
@@ -938,23 +959,37 @@
                             categoryStadium.style.backgroundColor = categoryColors[event.category] || '#FFFFFF'; // Apply the color code
                             eventItem.appendChild(categoryStadium); // Append category stadium to the event item
 
+                            // Create a container for the date, time, and location stadiums
+                            const detailsContainer = document.createElement('div');
+                            detailsContainer.style.display = 'flex'; // Use flexbox for horizontal layout
+                            detailsContainer.style.alignItems = 'center'; // Center items vertically
+                            detailsContainer.style.gap = '10px'; // Space between items
+                            
                             // Create a stadium for the event date
                             const dateStadium = document.createElement('div');
                             dateStadium.classList.add('stadium');
                             dateStadium.textContent = formatDate(`${event.date}`); // Use the formatDate function
-                            eventItem.appendChild(dateStadium); // Append date stadium to the event item
-
+                            
                             // Create a stadium for the event time
                             const timeStadium = document.createElement('div');
                             timeStadium.classList.add('stadium');
                             timeStadium.textContent = formatTime(event.time); // Use the formatTime function
-                            eventItem.appendChild(timeStadium); // Append time stadium to the event item
-
+                            
                             // Create a stadium for the event location
                             const locationStadium = document.createElement('div');
-                            locationStadium.classList.add('stadium');
+                            locationStadium.classList.add('stadium', 'location-tag'); // Add a new class
                             locationStadium.textContent = event.location || 'Location not specified'; // Set text to event location
-                            eventItem.appendChild(locationStadium); // Append location stadium to the event item
+                            
+                            // Append all stadiums to the details container
+                            detailsContainer.appendChild(dateStadium);
+                            detailsContainer.appendChild(timeStadium);
+                            detailsContainer.appendChild(locationStadium);
+                            
+                            // Append the details container to the event item
+                            eventItem.appendChild(detailsContainer);
+
+                            
+                        
                         });
 
                         // Existing button container setup
@@ -992,6 +1027,19 @@
                                 joinButton.textContent = isParticipant ? 'Leave Event' : 'Join!';
                                 joinButton.onclick = function () {
                                     toggleParticipation(event.createdBy, event.id, currentUserId, joinButton);
+                                };
+
+                                // Set button color based on text
+                                joinButton.style.backgroundColor = isParticipant ? 'red' : 'green'; // Red if leaving, green if joining
+                                joinButton.onclick = function() {
+                                    toggleParticipation(event.createdBy, event.id, currentUserId, joinButton);
+                                    
+                                    // Update the button color based on action
+                                    if (joinButton.textContent === 'Join!') {
+                                        joinButton.style.backgroundColor = 'green'; // Green when joining
+                                    } else {
+                                        joinButton.style.backgroundColor = 'red'; // Red when leaving
+                                    }
                                 };
                             });
                         
@@ -1046,8 +1094,6 @@
                             participantList.textContent = "Unable to load participants."; // Display error message
                         });
 
-        
-
                         participantList.classList.add('participant-list');
                         eventItem.appendChild(participantList); // Append the participant list to the event item
         
@@ -1065,10 +1111,26 @@
                         eventItem.appendChild(eventContent);
                         // Create a container for the upload section
                         const uploadContainer = document.createElement('div');
+                        uploadContainer.classList.add('upload-container'); // Add the class
 
                         // Create a single "Upload Picture" button
                         const singleUploadButton = document.createElement('button');
-                        singleUploadButton.textContent = 'Choose and Upload Picture';
+                        singleUploadButton.textContent = 'Add Picture';
+                        singleUploadButton.classList.add('single-upload-button'); // Add the class
+
+                        // Hide the button for future events
+                        if (isFutureEvent) {
+                            singleUploadButton.style.display = 'none'; // Hide button for future events
+                        } else {
+                            singleUploadButton.style.display = 'block'; // Show button for past events
+                        }
+
+                        // Append the button to the upload container
+                        uploadContainer.appendChild(singleUploadButton);
+                        
+                        // Append the upload container to the event item
+                        eventItem.appendChild(uploadContainer);
+                        
                         singleUploadButton.onclick = function() {
                             const fileInput = document.createElement('input');
                             fileInput.type = 'file';
@@ -1341,7 +1403,13 @@
             sidebar.style.display = sidebar.style.display === "none" ? "block" : "none"; // Toggle sidebar visibility
         };
 
-                // Initially hide the sidebar
+        document.getElementById('toggleEventsBtn').onclick = function() {
+            showFutureEvents = !showFutureEvents; // Toggle the state
+            this.textContent = showFutureEvents ? 'Show Past Events' : 'Show Future Events'; // Update button text
+            displayAllEvents(); // Refresh the events display
+        };
+
+        // Initially hide the sidebar
         document.addEventListener('DOMContentLoaded', function() {
             const sidebar = document.getElementById('sidebar');
             sidebar.style.display = 'none'; // Start with the sidebar hidden
@@ -1367,7 +1435,12 @@
         // Event modal functionality
         document.getElementById("submitEventBtn").onclick = submitEvent;
         document.getElementsByClassName("close")[0].onclick = closeModal;
-        
+
+
+        document.getElementById('toggleMessageBtn').onclick = function() {
+            const messageDiv = document.getElementById('toggleMessage');
+            messageDiv.style.display = messageDiv.style.display === 'none' ? 'block' : 'none'; // Toggle display
+        };
     </script>
 
 </body>
