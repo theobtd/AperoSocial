@@ -9,11 +9,17 @@ body {
 }
 
 .sidebar {
+    position: fixed;
+    width: 250px; /* Set a width */
+    height: 100%; /* Full height */
+    overflow-y: auto; /* Allow scrolling if content overflows */
     flex: 1;
     padding: 20px;
     text-align: left;
     width: 250px;
     transition: all 0.3s;
+    z-index: 2000; /* Set a high z-index value */
+    background-color: #e0e0e0;
 }
 
 .main-content {
@@ -285,7 +291,24 @@ button:hover {
 }
 
 .comment-stadium {
-    font-size: 0.9em; /* Make the font smaller */
+    font-size: 0.1em; /* Make the font smaller */
     font-weight: normal; /* Remove bold formatting */
     color: #555; /* Optional: Change text color for less emphasis */
 }
+
+@media (max-width: 768px) {
+    .sidebar {
+        width: 80%; /* Adjust width for mobile */
+        left: -100%; /* Initially hidden off-screen */
+    }
+}
+
+.event-controls {
+    display: flex; /* Use flexbox layout */
+    flex-direction: row; /* Arrange children in a row */
+    align-items: center; /* Center items vertically */
+    gap: 10px; /* Space between buttons */
+    margin-bottom: 20px; /* Optional: space below the controls */
+}
+
+
